@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexdial-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: nexdial_user
+      POSTGRES_PASSWORD: nexdial_password
+      POSTGRES_DB: nexdial_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexdial_user -d nexdial_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: nexdial-backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://nexdial_user:nexdial_password@postgres:5432/nexdial_db
+      - SYNC_DATABASE_URL=postgresql://nexdial_user:nexdial_password@postgres:5432/nexdial_db
+      - ENVIRONMENT=SIMULATION
+      - PORT=8000
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: nexdial-frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
